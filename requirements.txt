@@ -1,0 +1,9 @@
+torch
+fastapi
+uvicorn
+redis
+pydantic
+transformers
+numpy
+tqdm
+python-dotenv

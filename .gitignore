@@ -1,0 +1,41 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VSCode
+.vscode/
+.history/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Build output
+dist/
+build/
+out/
+
+# Logs
+logs/
+*.log
+
+# Coverage
+coverage/
+
+# Misc
+*.tgz
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Env
+.conda
+
+# Python
+__pycache__/

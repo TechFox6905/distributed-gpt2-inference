@@ -1,0 +1,17 @@
+services:
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    command: python -m worker.worker
+    depends_on:
+      - redis
+
+  redis:
+    image: redis
