@@ -35,6 +35,7 @@ class CausalSelfAttention(nn.Module):
                     - block_size (int): Maximum sequence length
             """
     def __init__(self, config):
+            
         super().__init__()
         assert config.n_embd % config.n_head == 0
         # key, query, value projections for all heads, but in a batch
@@ -49,7 +50,7 @@ class CausalSelfAttention(nn.Module):
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                      .view(1, 1, config.block_size, config.block_size))
 
-    def forward(self, x):
+    def forward(self, x, past_kv=None):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         # nh is "number of heads", hs is "head size", and C (number of channels) = nh * hs
@@ -60,8 +61,16 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         # attention (materializes the large (T,T) matrix for all the queries and keys)
+
+        if past_kv is not None:
+            past_k, past_v = past_kv
+            k = torch.cat((past_k, k), dim=-2)
+            v = torch.cat((past_v, v), dim=-2)
+        
+        present = (k, v)
+
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+        att = att.masked_fill(self.bias[:, :, :T, :k.size(-2)] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
@@ -121,11 +130,13 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
+        
 
-    def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x, past_kv=None):
+        attn_out, present = self.attn(self.ln_1(x), past_kv=past_kv)
+        x = x + attn_out
         x = x + self.mlp(self.ln_2(x))
-        return x
+        return x, present
 
 @dataclass
 class GPT2Config:
@@ -184,18 +195,26 @@ class GPT2(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, past_kvs=None):
         # idx is of shape (B, T)
         B, T = idx.size()
-        assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
+        assert past_length + T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
         # forward the token and posisition embeddings
-        pos = torch.arange(0, T, dtype=torch.long, device=idx.device) # shape (T)
+        if past_kvs is None:
+            past_length = 0
+            past_kvs = [None] * len(self.transformer.h)
+        else:
+            past_length = 0 if past_kvs[0] is None else past_kvs[0][0].size(-2)
+        pos = torch.arange(past_length, past_length + T, device=idx.device) # shape (T)
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (T, n_embd)
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (B, T, n_embd)
         x = tok_emb + pos_emb
         # forward the blocks of the transformer
-        for block in self.transformer.h:
-            x = block(x)
+        presents = []
+        for block, past in zip(self.transformer.h, past_kvs):
+            x, present = block(x, past_kv=past)
+            presents.append(present)
+
         # forward the final layernorm and the classifier
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (B, T, vocab_size)
@@ -243,6 +262,7 @@ class GPT2(nn.Module):
             model_hf = GPT2LMHeadModel.from_pretrained(
                 model_type,
                 token=hf_token,
+                cache_dir=CACHE_DIR
             )
         sd_hf = model_hf.state_dict()
 
