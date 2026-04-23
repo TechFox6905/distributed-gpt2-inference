@@ -7,7 +7,30 @@ from torch.nn import functional as F
 # -----------------------------------------------------------------------------
 
 class CausalSelfAttention(nn.Module):
-
+    """
+            Multi-head self-attention layer for transformer models.
+            
+            This layer implements scaled dot-product attention with multiple heads,
+            allowing the model to attend to information from different representation
+            subspaces at different positions.
+            
+            Attributes:
+                c_attn (nn.Linear): Combined linear projection for query, key, and value.
+                    Projects from embedding dimension to 3 times the embedding dimension
+                    to generate Q, K, V in a single batch operation.
+                c_proj (nn.Linear): Output projection layer that projects the concatenated
+                    multi-head attention output back to the embedding dimension.
+                n_head (int): Number of attention heads.
+                n_embd (int): Embedding dimension. Must be divisible by n_head.
+                bias (torch.Tensor): Lower triangular mask for causal (autoregressive) attention.
+                    Prevents positions from attending to future positions.
+            
+            Args:
+                config: Configuration object containing:
+                    - n_embd (int): Embedding dimension
+                    - n_head (int): Number of attention heads
+                    - block_size (int): Maximum sequence length
+            """
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
@@ -44,6 +67,20 @@ class CausalSelfAttention(nn.Module):
         return y
 
 class MLP(nn.Module):
+    """
+    Multi-Layer Perceptron (MLP) module for transformer models.
+    This module implements a feed-forward network commonly used in transformer architectures.
+    It consists of two linear transformations with a GELU activation in between,
+    expanding the embedding dimension by a factor of 4 and then projecting back.
+    The MLP follows the architecture: Linear(n_embd -> 4*n_embd) -> GELU -> Linear(4*n_embd -> n_embd)
+    Attributes:
+        c_fc (nn.Linear): First linear layer that expands the embedding dimension.
+        gelu (nn.GELU): GELU activation function with tanh approximation.
+        c_proj (nn.Linear): Projection layer that reduces back to original embedding dimension.
+    Args:
+        config: Configuration object containing:
+            - n_embd (int): Embedding dimension size.
+    """
 
     def __init__(self, config):
         super().__init__()
@@ -59,7 +96,22 @@ class MLP(nn.Module):
         return x
 
 class Block(nn.Module):
+    """
+    Transformer block that consists of a multi-head self-attention layer and a feed-forward network (MLP).
+    
+    This block applies layer normalization, followed by the attention mechanism and the MLP,
+    with residual connections around each of these components.
 
+    Attributes:
+        ln_1 (nn.LayerNorm): Layer normalization applied before the attention mechanism.
+        attn (CausalSelfAttention): The causal self-attention layer.
+        ln_2 (nn.LayerNorm): Layer normalization applied before the MLP.
+        mlp (MLP): The multi-layer perceptron used for feed-forward processing.
+    
+    Args:
+        config: Configuration object containing:
+            - n_embd (int): Embedding dimension size.
+    """
     def __init__(self, config):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
@@ -80,8 +132,26 @@ class GPTConfig:
     n_head: int = 12 # number of heads
     n_embd: int = 768 # embedding dimension
 
-class GPT(nn.Module):
+class GPT2(nn.Module):
+    """
+    Generative Pre-trained Transformer (GPT) model.
 
+    This model implements the GPT architecture, which consists of an embedding layer,
+    multiple transformer blocks, and a final linear layer for language modeling.
+    
+    Attributes:
+        config (GPTConfig): Configuration object containing model parameters.
+        transformer (nn.ModuleDict): Dictionary containing the embedding layers and transformer blocks.
+        lm_head (nn.Linear): Linear layer for generating output logits from the final hidden states.
+    
+    Args:
+        config: Configuration object containing:
+            - vocab_size (int): Size of the vocabulary.
+            - block_size (int): Maximum sequence length.
+            - n_layer (int): Number of transformer blocks.
+            - n_head (int): Number of attention heads.
+            - n_embd (int): Embedding dimension size.
+    """
     def __init__(self, config):
         super().__init__()
         self.config = config
