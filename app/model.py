@@ -44,6 +44,7 @@ class CausalSelfAttention(nn.Module):
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
         self.c_proj.NANOGPT_SCALE_INIT = 1
         # regularization
+        self.dropout = nn.Dropout(config.dropout)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         # not really a 'bias', more of a mask, but following the OpenAI/HF naming though
@@ -72,11 +73,12 @@ class CausalSelfAttention(nn.Module):
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:, :, :T, :k.size(-2)] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
+        att = self.dropout(att)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
         # output projection
-        y = self.c_proj(y)
-        return y
+        y = self.dropout(self.c_proj(y))
+        return y, present
 
 class MLP(nn.Module):
     """
@@ -100,11 +102,13 @@ class MLP(nn.Module):
         self.gelu    = nn.GELU(approximate='tanh')
         self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd)
         self.c_proj.NANOGPT_SCALE_INIT = 1
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
         x = self.c_fc(x)
         x = self.gelu(x)
         x = self.c_proj(x)
+        x = self.dropout(x)
         return x
 
 class Block(nn.Module):
@@ -145,6 +149,7 @@ class GPT2Config:
     n_layer: int = 12 # number of layers
     n_head: int = 12 # number of heads
     n_embd: int = 768 # embedding dimension
+    dropout: float = 0.1
 
 class GPT2(nn.Module):
     """
@@ -173,6 +178,7 @@ class GPT2(nn.Module):
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             wpe = nn.Embedding(config.block_size, config.n_embd),
+            drop = nn.Dropout(config.dropout),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = nn.LayerNorm(config.n_embd),
         ))
@@ -198,17 +204,18 @@ class GPT2(nn.Module):
     def forward(self, idx, targets=None, past_kvs=None):
         # idx is of shape (B, T)
         B, T = idx.size()
-        assert past_length + T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
         # forward the token and posisition embeddings
         if past_kvs is None:
             past_length = 0
             past_kvs = [None] * len(self.transformer.h)
         else:
             past_length = 0 if past_kvs[0] is None else past_kvs[0][0].size(-2)
+        assert past_length + T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.config.block_size}"
         pos = torch.arange(past_length, past_length + T, device=idx.device) # shape (T)
         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (T, n_embd)
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (B, T, n_embd)
-        x = tok_emb + pos_emb
+        x = self.transformer.drop(tok_emb + pos_emb) # apply dropout to the sum of token and position embeddings     
+
         # forward the blocks of the transformer
         presents = []
         for block, past in zip(self.transformer.h, past_kvs):
@@ -221,7 +228,7 @@ class GPT2(nn.Module):
         loss = None
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
-        return logits, loss
+        return logits, loss, presents
 
     @classmethod
     def from_pretrained(cls, model_type):
