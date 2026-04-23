@@ -1,8 +1,11 @@
+import os
 import math
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+
+CACHE_DIR = os.getenv("HF_CACHE_DIR", "./cache")
 
 # -----------------------------------------------------------------------------
 
@@ -125,7 +128,7 @@ class Block(nn.Module):
         return x
 
 @dataclass
-class GPTConfig:
+class GPT2Config:
     block_size: int = 1024 # max sequence length
     vocab_size: int = 50257 # number of tokens: 50,000 BPE merges + 256 bytes tokens + 1 <|endoftext|> token
     n_layer: int = 12 # number of layers
@@ -218,14 +221,29 @@ class GPT2(nn.Module):
         config_args['vocab_size'] = 50257 # always 50257 for GPT model checkpoints
         config_args['block_size'] = 1024 # always 1024 for GPT model checkpoints
         # create a from-scratch initialized minGPT model
-        config = GPTConfig(**config_args)
-        model = GPT(config)
+        config = GPT2Config(**config_args)
+        model = GPT2(config)
         sd = model.state_dict()
         sd_keys = sd.keys()
         sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')] # discard this mask / buffer, not a param
 
         # init a huggingface/transformers model
-        model_hf = GPT2LMHeadModel.from_pretrained(model_type)
+        hf_token = os.getenv("HF_TOKEN")
+        try:
+            model_hf = GPT2LMHeadModel.from_pretrained(
+                model_type,
+                cache_dir=CACHE_DIR,
+                local_files_only=True
+            )
+            print("Loaded model from cache")
+
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            print("Downloading model...")
+            model_hf = GPT2LMHeadModel.from_pretrained(
+                model_type,
+                token=hf_token,
+            )
         sd_hf = model_hf.state_dict()
 
         # copy while ensuring all of the parameters are aligned and match in names and shapes
