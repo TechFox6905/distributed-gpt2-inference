@@ -38,33 +38,53 @@ def sample_logits(logits, temperature=1.0, top_k=None, top_p=None):
 
     return next_token
 
-
 def generate(
     model,
-    tokens,
+    tokens,              # (B, T)
     max_tokens,
     temperature=1.0,
     top_k=None,
-    top_p=None
+    top_p=None,
+    eos_token_id = 50256
 ):
+    model.eval()
+    B = tokens.size(0)
+
     past = None
+    finished = torch.zeros(B, dtype=torch.bool, device=tokens.device)
 
-    for _ in range(max_tokens):
+    with torch.no_grad():
 
-        if past is None:
-            logits, _, past = model(tokens)
-        else:
-            logits, _, past = model(tokens[:, -1:], past_kvs=past)
+        for _ in range(max_tokens):
 
-        logits = logits[:, -1, :]
+            if past is None:
+                logits, _, past = model(tokens)
+            else:
+                logits, _, past = model(tokens[:, -1:], past_kvs=past)
 
-        next_token = sample_logits(
-            logits,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p
-        )
+            logits = logits[:, -1, :]  # (B, vocab)
 
-        tokens = torch.cat((tokens, next_token), dim=1)
+            next_token = sample_logits(
+                logits,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p
+            )  # (B, 1)
 
+            # 🔹 If already finished → force EOS (don’t change sequence)
+            next_token = torch.where(
+                finished.unsqueeze(1),
+                torch.full_like(next_token, eos_token_id),
+                next_token
+            )
+
+            tokens = torch.cat((tokens, next_token), dim=1)
+
+            # 🔹 Update finished mask
+            finished = finished | (next_token.squeeze(-1) == eos_token_id)
+
+            # 🔹 Stop early if all sequences finished
+            if finished.all():
+                break
+            
     return tokens
