@@ -39,3 +39,5 @@ coverage/
 
 # Python
 __pycache__/
+
+cache/
