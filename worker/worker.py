@@ -119,13 +119,19 @@ def process_batch(batch):
 
 
 # -------- Worker Loop --------
-while True:
+def worker_loop():
 
-    batch = get_batch(r)
+    while True:
 
-    if not batch:
-        continue
+        batch = get_batch(r)
 
-    print(f"[BATCH] size={len(batch)}")
+        if not batch:
+            continue
 
-    process_batch(batch)
+        print(f"[BATCH] size={len(batch)}")
+
+        process_batch(batch)
+
+
+if __name__ == "__main__":
+    worker_loop()

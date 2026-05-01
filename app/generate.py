@@ -48,10 +48,9 @@ def generate(
     eos_token_id = 50256
 ):
     model.eval()
-    B = tokens.size(0)
 
     past = None
-    finished = torch.zeros(B, dtype=torch.bool, device=tokens.device)
+    finished = (tokens[:, -1] == eos_token_id)
 
     with torch.no_grad():
 

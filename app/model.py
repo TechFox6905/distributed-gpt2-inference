@@ -269,7 +269,6 @@ class GPT2(nn.Module):
             model_hf = GPT2LMHeadModel.from_pretrained(
                 model_type,
                 token=hf_token,
-                cache_dir=CACHE_DIR
             )
         sd_hf = model_hf.state_dict()
 
