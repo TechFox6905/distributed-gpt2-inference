@@ -7,16 +7,54 @@ from transformers import GPT2Tokenizer
 from gpt.core.model import GPT2
 from gpt.core.generate import generate
 
-# -------- Device --------
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+HF_CACHE_DIR = os.getenv("HF_CACHE_DIR", "/app/cache")
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# -------- Model --------
-tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+tokenizer = None
+model = None
 
-model = GPT2.from_pretrained("gpt2")
-model = model.to(device)
-model.eval()
-print("Model loaded:", model is not None)
+def load_model():
+
+    global tokenizer, model
+
+    print("=" * 60)
+    print("Starting model initialization")
+    print(f"Device: {device}")
+    print(f"HF cache: {HF_CACHE_DIR}")
+    print("=" * 60)
+
+    start = time.time()
+
+    print("[1/5] Loading tokenizer...")
+    tokenizer = GPT2Tokenizer.from_pretrained(
+        "gpt2",
+        token=HF_TOKEN,
+        cache_dir=HF_CACHE_DIR
+    )
+
+    print("[2/5] Loading GPT weights...")
+    model = GPT2.from_pretrained(
+        "gpt2",
+        token=HF_TOKEN,
+        cache_dir=HF_CACHE_DIR
+    )
+
+    print("[3/5] Moving model to device...")
+    model = model.to(device)
+
+    print("[4/5] Setting eval mode...")
+    model.eval()
+
+    elapsed = time.time() - start
+
+    print("[5/5] Model ready")
+    print(f"Startup time: {elapsed:.2f}s")
+    print("=" * 60)
 
 # -------- Redis --------
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -133,4 +171,6 @@ def worker_loop():
 
 
 if __name__ == "__main__":
+    load_model()
     worker_loop()
+    print("Worker ready. Waiting for tasks...")
