@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpt"
+version = "0.1.0"
+description = "GPT implementation from scratch with batching and inference pipeline"
+authors = [
+    {name = "Prathamesh Gharat"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "torch",
+    "transformers",
+    "fastapi",
+    "uvicorn",
+    "redis",
+    "fakeredis",
+    "pytest",
+    "datasets",
+]
+
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src"
+]
+testpaths = [
+    "tests"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -4,8 +4,8 @@ import time
 import redis
 import torch
 from transformers import GPT2Tokenizer
-from app.model import GPT2
-from app.generate import generate
+from gpt.core.model import GPT2
+from gpt.core.generate import generate
 
 # -------- Device --------
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,7 +26,6 @@ r = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
     decode_responses=True,
-    socket_timeout=5,
 )
 
 print("Worker ready. Waiting for tasks...")
