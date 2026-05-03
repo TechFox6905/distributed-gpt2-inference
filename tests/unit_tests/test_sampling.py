@@ -1,6 +1,6 @@
 import torch
 
-from app.generate import sample_logits
+from gpt.core.generate import sample_logits
 
 def test_sample_logits_shape():
 

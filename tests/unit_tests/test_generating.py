@@ -1,6 +1,6 @@
 import torch
 
-from app.generate import generate
+from gpt.core.generate import generate
 
 def test_generation_length(model):
 

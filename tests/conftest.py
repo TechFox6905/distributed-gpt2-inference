@@ -1,6 +1,6 @@
 import pytest
 import torch
-from model.gpt import GPT, GPTConfig
+from gpt.core.model import GPT2, GPT2Config
 
 @pytest.fixture(autouse=True)
 def set_seed():
@@ -8,7 +8,7 @@ def set_seed():
 
 @pytest.fixture
 def small_config():
-    return GPTConfig(
+    return GPT2Config(
         vocab_size=100,
         block_size=32,
         n_layer=2,
@@ -21,7 +21,7 @@ def model(small_config):
 
     device = "cpu"
 
-    model = GPT(small_config)
+    model = GPT2(small_config)
     model.to(device)
     model.eval()
     

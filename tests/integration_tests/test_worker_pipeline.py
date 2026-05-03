@@ -4,7 +4,7 @@ import torch
 
 from unittest.mock import MagicMock
 
-from app.worker import process_batch
+from gpt.worker.worker import process_batch
 
 def test_process_batch_stores_results(monkeypatch):
 
@@ -12,7 +12,7 @@ def test_process_batch_stores_results(monkeypatch):
 
     # mock redis
     monkeypatch.setattr(
-        "app.worker.r",
+        "gpt.worker.worker.r",
         fake_redis
     )
 
@@ -24,7 +24,7 @@ def test_process_batch_stores_results(monkeypatch):
     mock_tokenizer.decode.return_value = "generated text"
 
     monkeypatch.setattr(
-        "app.worker.tokenizer",
+        "gpt.worker.worker.tokenizer",
         mock_tokenizer
     )
 
@@ -36,7 +36,7 @@ def test_process_batch_stores_results(monkeypatch):
         ])
 
     monkeypatch.setattr(
-        "app.worker.generate",
+        "gpt.worker.worker.generate",
         fake_generate
     )
 
@@ -70,12 +70,12 @@ def test_process_batch_updates_status(monkeypatch):
     fake_redis = fakeredis.FakeRedis(decode_responses=True)
 
     monkeypatch.setattr(
-        "app.worker.r",
+        "gpt.worker.worker.r",
         fake_redis
     )
 
     monkeypatch.setattr(
-        "app.worker.tokenizer",
+        "gpt.worker.worker.tokenizer",
         MagicMock(
             encode=lambda x: [1,2],
             decode=lambda x, skip_special_tokens=True: "ok"
@@ -83,7 +83,7 @@ def test_process_batch_updates_status(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "app.worker.generate",
+        "gpt.worker.worker.generate",
         lambda *args, **kwargs: torch.tensor([[1,2,3]])
     )
 

@@ -3,7 +3,7 @@ import fakeredis
 import threading
 import time
 
-from app.worker import get_batch
+from gpt.worker.worker import get_batch
 
 
 
