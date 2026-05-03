@@ -2,10 +2,15 @@ FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
 
 WORKDIR /app
 
-COPY requirements.txt .
+ENV HF_HOME=/app/cache
+ENV TRANSFORMERS_CACHE=/app/cache
+ENV PYTHONUNBUFFERED=1
 
-RUN pip install -r requirements.txt
+COPY pyproject.toml .
+COPY src ./src
 
-COPY . .
+RUN pip install --no-cache-dir .
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8000
+
+CMD ["uvicorn", "gpt.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

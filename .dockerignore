@@ -1,12 +1,61 @@
-.git
-.gitignore
-__pycache__
+```gitignore
+# Python
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
-.venv
-conda
-notebooks
-experiments
-*.ipynb
+
+# Virtual environments
+.venv/
+venv/
+.env/
+.conda/
+
+# Git
+.git/
+.gitignore
+
+# HuggingFace / model cache
+cache/
+hf_cache/
+
+# PyTorch / checkpoints
+checkpoints/
+models/
+weights/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Dataset artifacts
+data/
+datasets/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Results
+results/
+
+# Docker
+docker-compose.override.yml
+```

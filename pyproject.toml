@@ -18,11 +18,14 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "redis",
-    "fakeredis",
-    "pytest",
     "datasets",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "fakeredis",
+]
 
 [tool.pytest.ini_options]
 pythonpath = [

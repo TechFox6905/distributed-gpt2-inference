@@ -6,12 +6,25 @@ services:
       - "8000:8000"
     depends_on:
       - redis
+    env_file:
+      - .env
 
   worker:
     build: .
-    command: python -m worker.worker
+    command: python -m gpt.worker.worker
+    env_file:
+      - .env
     depends_on:
       - redis
+    gpus: all
+    volumes:
+      - hf_cache:/app/cache
 
   redis:
-    image: redis
+    image: redis:7-alpine
+    container_name: gpt-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  hf_cache:
