@@ -21,6 +21,10 @@ dist/
 build/
 out/
 
+# Packaging
+*.egg-info/
+
+
 # Logs
 logs/
 *.log
@@ -41,3 +45,4 @@ coverage/
 __pycache__/
 
 cache/
+
