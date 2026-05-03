@@ -1,11 +1,8 @@
-import os
 import math
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-
-CACHE_DIR = os.getenv("HF_CACHE_DIR", "./cache")
 
 # -----------------------------------------------------------------------------
 
@@ -242,7 +239,7 @@ class GPT2(nn.Module):
         return logits, loss, presents
 
     @classmethod
-    def from_pretrained(cls, model_type):
+    def from_pretrained(cls, model_type, token=None, cache_dir=None):
         """Loads pretrained GPT-2 model weights from huggingface"""
         assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
         from transformers import GPT2LMHeadModel
@@ -257,52 +254,52 @@ class GPT2(nn.Module):
         }[model_type]
         config_args['vocab_size'] = 50257 # always 50257 for GPT model checkpoints
         config_args['block_size'] = 1024 # always 1024 for GPT model checkpoints
-        # create a from-scratch initialized minGPT model
+
+        print("Loading HF model...")
+
+        model_hf = GPT2LMHeadModel.from_pretrained(
+            model_type,
+            token=token,
+            cache_dir=cache_dir,
+        )
+
+        print("Creating custom GPT model...")
+
         config = GPT2Config(**config_args)
         model = GPT2(config)
-        sd = model.state_dict()
-        sd_keys = sd.keys()
-        sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')] # discard this mask / buffer, not a param
 
-        # init a huggingface/transformers model
-        hf_token = os.getenv("HF_TOKEN")
-        try:
-            model_hf = GPT2LMHeadModel.from_pretrained(
-                model_type,
-                cache_dir=CACHE_DIR,
-                local_files_only=True
+        print("Loading state dict...")
+
+        hf_sd = model_hf.state_dict()
+
+        # remove non-parameter buffers
+        hf_sd = {
+            k: v for k, v in hf_sd.items()
+            if not (
+                k.endswith(".attn.masked_bias")
+                or k.endswith(".attn.bias")
             )
-            print("Loaded model from cache")
+        }
 
-        except Exception as e:
-            print(f"Error occurred: {e}")
-            print("Downloading model...")
-            model_hf = GPT2LMHeadModel.from_pretrained(
-                model_type,
-                token=hf_token,
-            )
-        sd_hf = model_hf.state_dict()
+        model_sd = model.state_dict()
 
-        # copy while ensuring all of the parameters are aligned and match in names and shapes
-        sd_keys_hf = sd_hf.keys()
-        sd_keys_hf = [k for k in sd_keys_hf if not k.endswith('.attn.masked_bias')] # ignore these, just a buffer
-        sd_keys_hf = [k for k in sd_keys_hf if not k.endswith('.attn.bias')] # same, just the mask (buffer)
-        transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
-        # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla Linear
-        # this means that we have to transpose these weights when we import them
-        assert len(sd_keys_hf) == len(sd_keys), f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
-        for k in sd_keys_hf:
+        transposed = [
+            'attn.c_attn.weight',
+            'attn.c_proj.weight',
+            'mlp.c_fc.weight',
+            'mlp.c_proj.weight'
+        ]
+
+        for k in hf_sd:
+
             if any(k.endswith(w) for w in transposed):
-                # special treatment for the Conv1D weights we need to transpose
-                assert sd_hf[k].shape[::-1] == sd[k].shape
-                with torch.no_grad():
-                    sd[k].copy_(sd_hf[k].t())
+                model_sd[k] = hf_sd[k].t()
             else:
-                # vanilla copy over the other parameters
-                assert sd_hf[k].shape == sd[k].shape
-                with torch.no_grad():
-                    sd[k].copy_(sd_hf[k])
+                model_sd[k] = hf_sd[k]
 
+        model.load_state_dict(model_sd, strict=False)
+
+        print("HF weights loaded")
         return model
 
 
