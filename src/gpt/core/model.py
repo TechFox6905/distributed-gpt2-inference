@@ -71,7 +71,18 @@ class CausalSelfAttention(nn.Module):
         present = (k, v)
 
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:, :, :T, :k.size(-2)] == 0, float('-inf'))
+        query_length = q.size(-2)
+        key_length = k.size(-2)
+
+        att = att.masked_fill(
+            self.bias[
+                :,
+                :,
+                key_length - query_length:key_length,
+                :key_length
+            ] == 0,
+            float("-inf")
+        )
         att = F.softmax(att, dim=-1)
         att = self.dropout(att)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
